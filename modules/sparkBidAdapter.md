@@ -3,7 +3,7 @@
 ```
 Module Name: Spark Bidder Adapter
 Module Type: Bidder Adapter
-Maintainer: <add contact email>
+Maintainer: prebid@pubstack.io
 ```
 
 # Description

@@ -10,7 +10,7 @@ import { ORTBImp, ORTBRequest } from '../src/prebid.public.js';
 const BIDDER_CODE = 'spark';
 const BIDDER_VERSION = '1.0';
 const GVLID = 1408;
-const REQUEST_URL = 'https://prebid-server.pbstck.com/openrtb2/auction'; 
+const REQUEST_URL = 'https://prebid-server.pbstck.com/auction';
 
 // Parameters accepted in the adUnit for this bidder.
 type SparkBidParams = {
