@@ -1,4 +1,5 @@
 import { hasPurpose1Consent } from "../../src/utils/gdpr.js";
+import { generateUUID } from '../../src/utils.js';
 import { SyncType } from '../../src/userSync.js';
 import { ServerResponse } from '../../src/adapters/bidderFactory.js';
 import { TCFConsentData } from '../../modules/consentManagementTcf.js';
@@ -19,6 +20,8 @@ type ConsentParams = {
 type UserSync = { type: SyncType; url: string };
 
 let lastSiteId: string | undefined;
+const IFRAME_SYNC_URL = 'https://127.0.0.1:5500/iframe.html';
+// https://acdn.adnxs.com/prebid/amp/user-sync/load-cookie-with-consent.html?source=amp&coop_sync=false&max_sync_count=20&bidders=pubstack&endpoint=https%3A%2F%2Fprebid-server-dev.pbstck.com%2Fcookie_sync&gdpr=1&gdpr_consent=CQck3kAQck3kAAHABBENCJFsAP_gAEPgAAqIL2tR_G__bWlr-bb3aftkeYxP9_hr7sQxBgbJk24FzLvW7JwXx2E5NAzatqIKmRIAu3TBIQNlHJDURVCgKIgFryDMaEyUoTNKJ6BkiFMRI2NYCFxvm4tjWQCY4vr99lc1mB-N7dr82dzyy6hHn3a5_2S1UJCdIYetDfv8ZBKT-9IEd_x8v4v4_F7pE2-eS1n_pGvp4j9-YnM_dBmxt-TSff7Pn__rl_e7X_vc_n37v94XH77v_-__f_-7___2b_-gvYACYaFRBGWRAgECgYQQIAFBWEAFAgCAABIGiAgBMGBTkDABdYTIAQAoABggBAACDAAEAAAkACEQAUAEAgBAgECgADAAgCAgAIGAAMAFiIBAACA6BimBBAIFgAkZlUGmBKAAkEBLZUIJAMCCuEIRZ4BBAiJgoAAASACgIAAHgsBCSQErEggC4gmgAAIAAAogRIEUhZgCCoM0WgLAk4DI0wDB8wTJKdBkgTBCQkmxCb0Jh4pCiBBDkBsUswB08QUAAAAA.f_wACHwAAAAA&args=account:fb0fe223-b71a-4643-bc4a-f76c316f8689%22
 
 export function setUserSyncContext({ siteId }: { siteId?: string }) {
   if (typeof siteId === 'string' && siteId.length > 0) {
@@ -56,6 +59,55 @@ const appendQueryParams = (url: string, params: string[]): string => {
   return `${url}${separator}${params.join('&')}`;
 };
 
+type LoadCookieWithConsentParams = {
+  source?: string;
+  coop_sync?: boolean;
+  max_sync_count?: number;
+  bidders?: string;
+  endpoint?: string;
+  gdpr?: 0 | 1;
+  gdpr_consent: string;
+  args?: string;
+};
+
+export function buildLoadCookieWithConsentUrl(
+  params: LoadCookieWithConsentParams
+): string {
+  const baseUrl =
+    "https://acdn.adnxs.com/prebid/amp/user-sync/load-cookie-with-consent.html";
+
+  const url = new URL(baseUrl);
+
+  const defaults: Partial<LoadCookieWithConsentParams> = {
+    source: "pubstackBidAdapter",
+    coop_sync: false,
+    max_sync_count: 20,
+    bidders: "pubstack",
+    endpoint: "https://prebid-server.pbstck.com/cookie_sync",
+  };
+
+  const merged = { ...defaults, ...params };
+
+  const setIfDefined = (key: string, value: unknown) => {
+    if (value === undefined || value === null) return;
+    url.searchParams.set(key, String(value));
+  };
+
+  setIfDefined("source", merged.source);
+  setIfDefined("coop_sync", merged.coop_sync);
+  setIfDefined("max_sync_count", merged.max_sync_count);
+  setIfDefined("bidders", merged.bidders);
+
+  setIfDefined("endpoint", merged.endpoint);
+
+  setIfDefined("gdpr", merged.gdpr);
+  setIfDefined("gdpr_consent", merged.gdpr_consent);
+  setIfDefined("args", merged.args);
+
+  return url.toString();
+}
+
+
 export function getUserSyncs(
   syncOptions: { iframeEnabled: boolean; pixelEnabled: boolean },
   serverResponses: ServerResponse[],
@@ -77,11 +129,12 @@ export function getUserSyncs(
   const syncs: UserSync[] = [];
   const seen = new Set<string>();
 
-  const pushSync = (type: SyncType, url: string) => {
+  const pushSync = (type: SyncType, url: string, options: { appendConsent?: boolean } = {}) => {
     if (type === 'iframe' ? !syncOptions.iframeEnabled : !syncOptions.pixelEnabled) {
       return;
     }
-    const finalUrl = consentParams.length ? appendQueryParams(url, consentParams) : url;
+    const shouldAppendConsent = options.appendConsent !== false;
+    const finalUrl = shouldAppendConsent && consentParams.length ? appendQueryParams(url, consentParams) : url;
     const key = `${type}|${finalUrl}`;
     if (!seen.has(key)) {
       seen.add(key);
@@ -89,31 +142,14 @@ export function getUserSyncs(
     }
   };
 
-  for (const response of serverResponses) {
-    const cookieSync = response?.body?.cookie_sync ?? response?.body?.ext?.cookie_sync;
-    if (!cookieSync) continue;
-
-    if (Array.isArray(cookieSync)) {
-      for (const entry of cookieSync) {
-        const userSync = entry?.usersync ?? entry;
-        const url = userSync?.url;
-        if (typeof url !== 'string' || url.length === 0) continue;
-        const rawType = typeof userSync?.type === 'string' ? userSync.type.toLowerCase() : '';
-        const syncType: SyncType = rawType === 'iframe' ? 'iframe' : 'image';
-        pushSync(syncType, url);
-      }
-      continue;
-    }
-
-    const bidderStatus = Array.isArray(cookieSync.bidder_status) ? cookieSync.bidder_status : [];
-    for (const bidder of bidderStatus) {
-      const userSync = bidder?.usersync;
-      const url = userSync?.url;
-      if (typeof url !== 'string' || url.length === 0) continue;
-      const rawType = typeof userSync?.type === 'string' ? userSync.type.toLowerCase() : '';
-      const syncType: SyncType = rawType === 'iframe' ? 'iframe' : 'image';
-      pushSync(syncType, url);
-    }
+  if (syncOptions.iframeEnabled && typeof lastSiteId === 'string' && lastSiteId.length > 0) {
+    const params: LoadCookieWithConsentParams = {
+      gdpr_consent: gdprConsent?.consentString || '',
+      args: `account:${lastSiteId}`,
+      gdpr: typeof gdprConsent?.gdprApplies === 'boolean' ? (gdprConsent.gdprApplies ? 1 : 0) : 0
+    };
+    const iframeUrl = buildLoadCookieWithConsentUrl(params);
+    pushSync('iframe', iframeUrl, { appendConsent: false });
   }
 
   return syncs;
