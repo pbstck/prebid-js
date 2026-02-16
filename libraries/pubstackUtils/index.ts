@@ -1,5 +1,4 @@
 import { hasPurpose1Consent } from "../../src/utils/gdpr.js";
-import { generateUUID } from '../../src/utils.js';
 import { SyncType } from '../../src/userSync.js';
 import { ServerResponse } from '../../src/adapters/bidderFactory.js';
 import { TCFConsentData } from '../../modules/consentManagementTcf.js';
@@ -20,8 +19,6 @@ type ConsentParams = {
 type UserSync = { type: SyncType; url: string };
 
 let lastSiteId: string | undefined;
-const IFRAME_SYNC_URL = 'https://127.0.0.1:5500/iframe.html';
-// https://acdn.adnxs.com/prebid/amp/user-sync/load-cookie-with-consent.html?source=amp&coop_sync=false&max_sync_count=20&bidders=pubstack&endpoint=https%3A%2F%2Fprebid-server-dev.pbstck.com%2Fcookie_sync&gdpr=1&gdpr_consent=CQck3kAQck3kAAHABBENCJFsAP_gAEPgAAqIL2tR_G__bWlr-bb3aftkeYxP9_hr7sQxBgbJk24FzLvW7JwXx2E5NAzatqIKmRIAu3TBIQNlHJDURVCgKIgFryDMaEyUoTNKJ6BkiFMRI2NYCFxvm4tjWQCY4vr99lc1mB-N7dr82dzyy6hHn3a5_2S1UJCdIYetDfv8ZBKT-9IEd_x8v4v4_F7pE2-eS1n_pGvp4j9-YnM_dBmxt-TSff7Pn__rl_e7X_vc_n37v94XH77v_-__f_-7___2b_-gvYACYaFRBGWRAgECgYQQIAFBWEAFAgCAABIGiAgBMGBTkDABdYTIAQAoABggBAACDAAEAAAkACEQAUAEAgBAgECgADAAgCAgAIGAAMAFiIBAACA6BimBBAIFgAkZlUGmBKAAkEBLZUIJAMCCuEIRZ4BBAiJgoAAASACgIAAHgsBCSQErEggC4gmgAAIAAAogRIEUhZgCCoM0WgLAk4DI0wDB8wTJKdBkgTBCQkmxCb0Jh4pCiBBDkBsUswB08QUAAAAA.f_wACHwAAAAA&args=account:fb0fe223-b71a-4643-bc4a-f76c316f8689%22
 
 export function setUserSyncContext({ siteId }: { siteId?: string }) {
   if (typeof siteId === 'string' && siteId.length > 0) {

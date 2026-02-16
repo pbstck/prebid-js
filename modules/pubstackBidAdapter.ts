@@ -2,25 +2,25 @@ import { deepSetValue, generateUUID, logError } from '../src/utils.js';
 import { AdapterRequest, BidderSpec, registerBidder } from '../src/adapters/bidderFactory.js';
 import { BANNER, NATIVE, VIDEO } from '../src/mediaTypes.js';
 import { ortbConverter } from '../libraries/ortbConverter/converter.js';
-import { getUserSyncs, setUserSyncContext } from '../libraries/sparkUtils/index.js';
+import { getUserSyncs, setUserSyncContext } from '../libraries/pubstackUtils/index.js';
 import { BidRequest, ClientBidderRequest } from '../src/adapterManager.js';
 import { ORTBImp, ORTBRequest } from '../src/prebid.public.js';
 
-// Spark adapter identifiers and endpoint.
-const BIDDER_CODE = 'spark';
+// Pubstack adapter identifiers and endpoint.
+const BIDDER_CODE = 'pubstack';
 const BIDDER_VERSION = '1.0';
 const GVLID = 1408;
 const REQUEST_URL = 'https://prebid-server.pbstck.com/auction';
 
 // Parameters accepted in the adUnit for this bidder.
-type SparkBidParams = {
+type PubstackBidParams = {
   siteId: string;
   adUnitName: string;
 };
 
 declare module '../src/adUnits' {
   interface BidderParams {
-    [BIDDER_CODE]: SparkBidParams;
+    [BIDDER_CODE]: PubstackBidParams;
   }
 }
 
@@ -32,10 +32,10 @@ const converter = ortbConverter({
     ttl: 60,
   },
   imp(buildImp, bidRequest: BidRequest<typeof BIDDER_CODE>, context) {
-    // Build the ORTB imp and add Spark-specific data.
+    // Build the ORTB imp and add Pubstack-specific data.
     let imp: ORTBImp = buildImp(bidRequest, context);
-    deepSetValue(imp, 'ext.spark', bidRequest.params);
-    deepSetValue(imp, 'ext.spark.version', BIDDER_VERSION);
+    deepSetValue(imp, 'ext.pubstack', bidRequest.params);
+    deepSetValue(imp, 'ext.pubstack.version', BIDDER_VERSION);
     deepSetValue(imp, 'id', bidRequest.params.adUnitName); // peut etre divId tester avec un uuid généré a chaque auction
     return imp;
   },

@@ -1,25 +1,25 @@
 # Overview
 
 ```
-Module Name: Spark Bidder Adapter
+Module Name: Pubstack Bidder Adapter
 Module Type: Bidder Adapter
 Maintainer: prebid@pubstack.io
 ```
 
 # Description
-Module that connects to the Spark bidder to request bids via OpenRTB.
+Module that connects to the Pubstack bidder to request bids via OpenRTB.
 
 # Test Parameters
 ```
 var adUnits = [{
-  code: 'spark-adunit-1',
+  code: 'pubstack-adunit-1',
   mediaTypes: {
     banner: {
       sizes: [[300, 250]]
     }
   },
   bids: [{
-    bidder: 'spark',
+    bidder: 'pubstack',
     params: {
       siteId: 'test-site-id',
       adUnitName: 'test-adunit-name'

@@ -4434,7 +4434,7 @@
     },
     {
       "componentType": "bidder",
-      "componentName": "spark",
+      "componentName": "pubstack",
       "aliasOf": null,
       "gvlid": 1408,
       "disclosureURL": null
