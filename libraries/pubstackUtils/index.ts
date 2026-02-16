@@ -1,8 +1,5 @@
 import { hasPurpose1Consent } from "../../src/utils/gdpr.js";
 import { SyncType } from '../../src/userSync.js';
-import { ServerResponse } from '../../src/adapters/bidderFactory.js';
-import { TCFConsentData } from '../../modules/consentManagementTcf.js';
-import { GPPConsentData } from '../../modules/consentManagementGpp.js';
 
 type ConsentParams = {
   gdprConsent?: {
@@ -104,13 +101,12 @@ export function buildLoadCookieWithConsentUrl(
   return url.toString();
 }
 
-
 export function getUserSyncs(
   syncOptions: { iframeEnabled: boolean; pixelEnabled: boolean },
-  serverResponses: ServerResponse[],
-  gdprConsent: TCFConsentData,
-  uspConsent: string,
-  gppConsent: GPPConsentData
+  serverResponses,
+  gdprConsent,
+  uspConsent,
+  gppConsent
 ): UserSync[] {
   if (!syncOptions.iframeEnabled && !syncOptions.pixelEnabled) {
     return [];

@@ -1,4 +1,4 @@
-import { deepSetValue, generateUUID, logError } from '../src/utils.js';
+import { deepSetValue, logError } from '../src/utils.js';
 import { AdapterRequest, BidderSpec, registerBidder } from '../src/adapters/bidderFactory.js';
 import { BANNER, NATIVE, VIDEO } from '../src/mediaTypes.js';
 import { ortbConverter } from '../libraries/ortbConverter/converter.js';
@@ -72,7 +72,7 @@ const converter = ortbConverter({
       }
     }
     deepSetValue(request, 'ext.prebid', {});
-    // Todo add viewport distance 
+    // Todo add viewport distance
     return request;
   },
 });
@@ -99,7 +99,7 @@ const buildRequests = (
   setUserSyncContext({ siteId });
   const data: ORTBRequest = converter.toORTB({ bidRequests, bidderRequest });
   // TODO: ajouter le call des user syncs dans le request auction (nouveau endpoint auction) pour parser la response dans la buildRequests dans la function getUserSyncs
-  
+
   return {
     method: 'POST',
     url: REQUEST_URL,
