@@ -8,7 +8,7 @@ import { ORTBImp, ORTBRequest } from '../src/prebid.public.js';
 import { getGlobal } from '../src/prebidGlobal.js';
 
 // Pubstack adapter identifiers and endpoint.
-const BIDDER_CODE = 'pbstck';
+const BIDDER_CODE = 'pubstack';
 const GVLID = 1408;
 const REQUEST_URL = 'https://node.pbstck.com/openrtb2/auction';
 
@@ -26,11 +26,6 @@ declare module '../src/adUnits' {
 
 // ORTB converter: builds imps and the global ORTB request.
 const converter = ortbConverter({
-  context: {
-    // Default values for bid responses.
-    netRevenue: true,
-    ttl: 60,
-  },
   imp(buildImp, bidRequest: BidRequest<typeof BIDDER_CODE>, context) {
     // Build the ORTB imp and add Pubstack-specific data.
     let imp: ORTBImp = buildImp(bidRequest, context);
