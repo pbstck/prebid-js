@@ -2,15 +2,15 @@ import { deepSetValue, logError } from '../src/utils.js';
 import { AdapterRequest, BidderSpec, registerBidder } from '../src/adapters/bidderFactory.js';
 import { BANNER, NATIVE, VIDEO } from '../src/mediaTypes.js';
 import { ortbConverter } from '../libraries/ortbConverter/converter.js';
-import { getUserSyncs, setUserSyncContext } from '../libraries/pubstackUtils/index.js';
+import { getUserSyncs, getViewportDistance, setUserSyncContext } from '../libraries/pubstackUtils/index.js';
 import { BidRequest, ClientBidderRequest } from '../src/adapterManager.js';
 import { ORTBImp, ORTBRequest } from '../src/prebid.public.js';
+import { getGlobal } from '../src/prebidGlobal.js';
 
 // Pubstack adapter identifiers and endpoint.
-const BIDDER_CODE = 'pubstack';
-const BIDDER_VERSION = '1.0';
+const BIDDER_CODE = 'pbstck';
 const GVLID = 1408;
-const REQUEST_URL = 'https://prebid-server.pbstck.com/auction';
+const REQUEST_URL = 'https://node.pbstck.com/openrtb2/auction';
 
 // Parameters accepted in the adUnit for this bidder.
 type PubstackBidParams = {
@@ -34,9 +34,16 @@ const converter = ortbConverter({
   imp(buildImp, bidRequest: BidRequest<typeof BIDDER_CODE>, context) {
     // Build the ORTB imp and add Pubstack-specific data.
     let imp: ORTBImp = buildImp(bidRequest, context);
-    deepSetValue(imp, 'ext.pubstack', bidRequest.params);
-    deepSetValue(imp, 'ext.pubstack.version', BIDDER_VERSION);
-    deepSetValue(imp, 'id', bidRequest.params.adUnitName); // peut etre divId tester avec un uuid généré a chaque auction
+    deepSetValue(imp, 'id', bidRequest.params.adUnitName);
+    const viewportDistance = getViewportDistance(bidRequest.adUnitCode);
+
+    if (typeof viewportDistance === 'number') {
+      deepSetValue(imp, 'ext.prebid.bidder.pubstack.vpl', viewportDistance);
+    }
+    const prebidVersion = getGlobal()?.version;
+    if (typeof prebidVersion === 'string') {
+      deepSetValue(imp, 'ext.prebid.bidder.pubstack.pbjsVersion', prebidVersion);
+    }
     return imp;
   },
   request(buildRequest, imps, bidderRequest, context) {
@@ -72,7 +79,6 @@ const converter = ortbConverter({
       }
     }
     deepSetValue(request, 'ext.prebid', {});
-    // Todo add viewport distance
     return request;
   },
 });
@@ -98,7 +104,6 @@ const buildRequests = (
   const siteId = bidderRequest?.bids?.[0]?.params?.siteId;
   setUserSyncContext({ siteId });
   const data: ORTBRequest = converter.toORTB({ bidRequests, bidderRequest });
-  // TODO: ajouter le call des user syncs dans le request auction (nouveau endpoint auction) pour parser la response dans la buildRequests dans la function getUserSyncs
 
   return {
     method: 'POST',

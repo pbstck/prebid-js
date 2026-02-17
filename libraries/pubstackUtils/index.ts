@@ -1,5 +1,7 @@
 import { hasPurpose1Consent } from "../../src/utils/gdpr.js";
 import { SyncType } from '../../src/userSync.js';
+import { canAccessWindowTop, getWindowSelf, getWindowTop } from "../../src/utils.js";
+import { getBoundingClientRect } from "../boundingClientRect/boundingClientRect.js";
 
 type ConsentParams = {
   gdprConsent?: {
@@ -62,22 +64,23 @@ type LoadCookieWithConsentParams = {
   gdpr?: 0 | 1;
   gdpr_consent: string;
   args?: string;
+  debug?: boolean;
 };
 
 export function buildLoadCookieWithConsentUrl(
   params: LoadCookieWithConsentParams
 ): string {
-  const baseUrl =
-    "https://acdn.adnxs.com/prebid/amp/user-sync/load-cookie-with-consent.html";
+  const baseUrl = "https://cdn.pbstck.com/user-sync/load-cookie-with-consent.html";
 
   const url = new URL(baseUrl);
 
   const defaults: Partial<LoadCookieWithConsentParams> = {
-    source: "pubstackBidAdapter",
+    source: "amp",
     coop_sync: false,
     max_sync_count: 20,
     bidders: "pubstack",
-    endpoint: "https://prebid-server.pbstck.com/cookie_sync",
+    endpoint: "https://node.pbstck.com/cookie_sync",
+    debug: true,
   };
 
   const merged = { ...defaults, ...params };
@@ -147,3 +150,40 @@ export function getUserSyncs(
 
   return syncs;
 }
+
+export function getViewportDistance(adUnitCode?: string): number | undefined {
+  if (!adUnitCode) return;
+  const round2 = (value: number) => Math.round(value * 100) / 100;
+  try {
+    const win = canAccessWindowTop() ? getWindowTop() : getWindowSelf();
+    const doc = win.document;
+    const element = doc?.getElementById(adUnitCode);
+    if (!element) return;
+    const rect = getBoundingClientRect(element);
+    if (!rect) return;
+
+    const viewportHeight =
+      win.innerHeight ||
+      doc?.documentElement?.clientHeight ||
+      doc?.body?.clientHeight ||
+      0;
+
+    if (!viewportHeight) return;
+
+    if (rect.top > viewportHeight) {
+      return round2((rect.top - viewportHeight) / viewportHeight);
+    }
+    if (rect.bottom < 0) {
+      return round2(rect.bottom / viewportHeight);
+    }
+    if (rect.top < 0) {
+      return round2(rect.top / viewportHeight);
+    }
+    if (rect.bottom > viewportHeight) {
+      return round2((rect.bottom - viewportHeight) / viewportHeight);
+    }
+    return 0;
+  } catch (_error) {
+    return;
+  }
+};
