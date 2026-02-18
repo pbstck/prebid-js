@@ -25,18 +25,15 @@ declare module '../src/adUnits' {
   }
 }
 
-interface GetUserSyncFn {
-  (
-    syncOptions: {
-      iframeEnabled: boolean;
-      pixelEnabled: boolean;
-    },
-    responses: ServerResponse[],
-    gdprConsent: null | ConsentData[typeof CONSENT_GDPR],
-    uspConsent: null | ConsentData[typeof CONSENT_USP],
-    gppConsent: null | ConsentData[typeof CONSENT_GPP]
-  ): ({ type: SyncType, url: string })[]
-}
+type GetUserSyncFn = (
+  syncOptions: {
+    iframeEnabled: boolean;
+    pixelEnabled: boolean;
+  },
+  responses: ServerResponse[],
+  gdprConsent: null | ConsentData[typeof CONSENT_GDPR],
+  uspConsent: null | ConsentData[typeof CONSENT_USP],
+  gppConsent: null | ConsentData[typeof CONSENT_GPP]) => ({ type: SyncType, url: string })[]
 
 const siteIds: Set<string> = new Set();
 let cntRequest = 0;
@@ -46,7 +43,7 @@ const uStart = performance.now();
 const converter = ortbConverter({
   imp(buildImp, bidRequest: BidRequest<typeof BIDDER_CODE>, context) {
     cntImp++;
-    let imp = buildImp(bidRequest, context);
+    const imp = buildImp(bidRequest, context);
     deepSetValue(imp, `ext.prebid.bidder.${BIDDER_CODE}.adUnitName`, bidRequest.params.adUnitName);
     deepSetValue(imp, `ext.prebid.bidder.${BIDDER_CODE}.adUnitCode`, bidRequest.adUnitCode);
     deepSetValue(imp, `ext.prebid.bidder.${BIDDER_CODE}.divId`, getElementForAdUnitCode(bidRequest.adUnitCode)?.id);
@@ -56,7 +53,7 @@ const converter = ortbConverter({
   request(buildRequest, imps, bidderRequest, context) {
     cntRequest++;
     const request = buildRequest(imps, bidderRequest, context)
-    const siteId = bidderRequest.bids[0].params.siteId!
+    const siteId = bidderRequest.bids[0].params.siteId
     siteIds.add(siteId);
     deepSetValue(request, 'site.publisher.id', siteId)
     deepSetValue(request, 'test', config.getConfig('debug') ? 1 : 0)
@@ -86,7 +83,7 @@ const buildRequests = (
   bidderRequest: ClientBidderRequest<typeof BIDDER_CODE>,
 ): AdapterRequest => {
   const data: ORTBRequest = converter.toORTB({ bidRequests, bidderRequest });
-  const siteId = data.site!.publisher!.id;
+  const siteId = data.site.publisher.id;
   return {
     method: 'POST',
     url: `${REQUEST_URL}?siteId=${siteId}`,
