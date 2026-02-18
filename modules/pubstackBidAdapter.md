@@ -1,5 +1,4 @@
 # Overview
-
 ```
 Module Name: Pubstack Bidder Adapter
 Module Type: Bidder Adapter
@@ -7,12 +6,14 @@ Maintainer: prebid@pubstack.io
 ```
 
 # Description
-Module that connects to the Pubstack bidder to request bids via OpenRTB.
+Connects to Pubstack exchange for bids.
+
+Pubstack bid adapter supports all media type including video, banner and native.
 
 # Test Parameters
 ```
 var adUnits = [{
-  code: 'pubstack-adunit-1',
+  code: 'adunit-1',
   mediaTypes: {
     banner: {
       sizes: [[300, 250]]
@@ -21,8 +22,8 @@ var adUnits = [{
   bids: [{
     bidder: 'pubstack',
     params: {
-      siteId: 'test-site-id',
-      adUnitName: 'test-adunit-name'
+      siteId: 'your-side-id',
+      adUnitName: 'adunit-1'
     }
   }]
 }];

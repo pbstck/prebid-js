@@ -1,113 +1,99 @@
 import { deepSetValue, logError } from '../src/utils.js';
-import { AdapterRequest, BidderSpec, registerBidder } from '../src/adapters/bidderFactory.js';
+import { AdapterRequest, BidderSpec, registerBidder, ServerResponse } from '../src/adapters/bidderFactory.js';
 import { BANNER, NATIVE, VIDEO } from '../src/mediaTypes.js';
 import { ortbConverter } from '../libraries/ortbConverter/converter.js';
-import { getUserSyncs, getViewportDistance, setUserSyncContext } from '../libraries/pubstackUtils/index.js';
+import { getElementForAdUnitCode, getViewportDistance, isPageVisible } from '../libraries/pubstackUtils/index.js';
 import { BidRequest, ClientBidderRequest } from '../src/adapterManager.js';
-import { ORTBImp, ORTBRequest } from '../src/prebid.public.js';
+import { ORTBRequest } from '../src/prebid.public.js';
+import { config } from '../src/config.js';
+import { SyncType } from '../src/userSync.js';
+import { ConsentData, CONSENT_GDPR, CONSENT_USP, CONSENT_GPP } from '../src/consentHandler.js';
 import { getGlobal } from '../src/prebidGlobal.js';
 
-// Pubstack adapter identifiers and endpoint.
 const BIDDER_CODE = 'pubstack';
 const GVLID = 1408;
 const REQUEST_URL = 'https://node.pbstck.com/openrtb2/auction';
-
-// Parameters accepted in the adUnit for this bidder.
-type PubstackBidParams = {
-  siteId: string;
-  adUnitName: string;
-};
+const COOKIESYNC_IFRAME_URL = 'https://cdn.pbstck.com/async_usersync.html';
+const COOKIESYNC_PIXEL_URL = 'https://cdn.pbstck.com/async_usersync.png';
 
 declare module '../src/adUnits' {
   interface BidderParams {
-    [BIDDER_CODE]: PubstackBidParams;
+    [BIDDER_CODE]: {
+      siteId: string;
+      adUnitName: string;
+    };
   }
 }
 
-// ORTB converter: builds imps and the global ORTB request.
+interface GetUserSyncFn {
+  (
+    syncOptions: {
+      iframeEnabled: boolean;
+      pixelEnabled: boolean;
+    },
+    responses: ServerResponse[],
+    gdprConsent: null | ConsentData[typeof CONSENT_GDPR],
+    uspConsent: null | ConsentData[typeof CONSENT_USP],
+    gppConsent: null | ConsentData[typeof CONSENT_GPP]
+  ): ({ type: SyncType, url: string })[]
+}
+
+const siteIds: Set<string> = new Set();
+let cntRequest = 0;
+let cntImp = 0;
+const uStart = performance.now();
+
 const converter = ortbConverter({
   imp(buildImp, bidRequest: BidRequest<typeof BIDDER_CODE>, context) {
-    // Build the ORTB imp and add Pubstack-specific data.
-    let imp: ORTBImp = buildImp(bidRequest, context);
-    deepSetValue(imp, 'id', bidRequest.params.adUnitName);
-    const viewportDistance = getViewportDistance(bidRequest.adUnitCode);
-
-    if (typeof viewportDistance === 'number') {
-      deepSetValue(imp, 'ext.prebid.bidder.pubstack.vpl', viewportDistance);
-    }
-    const prebidVersion = getGlobal()?.version;
-    if (typeof prebidVersion === 'string') {
-      deepSetValue(imp, 'ext.prebid.bidder.pubstack.pbjsVersion', prebidVersion);
-    }
+    cntImp++;
+    let imp = buildImp(bidRequest, context);
+    deepSetValue(imp, `ext.prebid.bidder.${BIDDER_CODE}.adUnitName`, bidRequest.params.adUnitName);
+    deepSetValue(imp, `ext.prebid.bidder.${BIDDER_CODE}.adUnitCode`, bidRequest.adUnitCode);
+    deepSetValue(imp, `ext.prebid.bidder.${BIDDER_CODE}.divId`, getElementForAdUnitCode(bidRequest.adUnitCode)?.id);
+    deepSetValue(imp, `ext.prebid.bidder.${BIDDER_CODE}.vpl`, getViewportDistance(bidRequest.adUnitCode));
     return imp;
   },
   request(buildRequest, imps, bidderRequest, context) {
-    // Hook to enrich the global request if needed.
-    const request: ORTBRequest = buildRequest(imps, bidderRequest, context);
-    imps.forEach((imp) => {
-      const adUnitName = bidderRequest?.bids?.[0]?.params?.adUnitName;
-      if (adUnitName) {
-        deepSetValue(imp, 'ext.prebid.bidder.pubstack.adUnitName', adUnitName); // nom connu par le ssp
-      }
-    });
-    const siteId = bidderRequest?.bids?.[0]?.params?.siteId;
-    if (siteId) {
-      deepSetValue(request, 'site.publisher.id', siteId);
-    }
-    const gdprConsent = bidderRequest?.gdprConsent;
-    if (gdprConsent) {
-      if (typeof gdprConsent.gdprApplies === 'boolean') {
-        deepSetValue(request, 'regs.ext.gdpr', gdprConsent.gdprApplies ? 1 : 0);
-      }
-      if (typeof gdprConsent.consentString === 'string') {
-        deepSetValue(request, 'user.ext.consent', gdprConsent.consentString);
-      }
-    }
-    if (bidderRequest?.uspConsent) {
-      deepSetValue(request, 'regs.ext.us_privacy', bidderRequest.uspConsent);
-    }
-    const gppConsent = bidderRequest?.gppConsent;
-    if (gppConsent?.gppString) {
-      deepSetValue(request, 'regs.ext.gpp', gppConsent.gppString);
-      if (Array.isArray(gppConsent.applicableSections)) {
-        deepSetValue(request, 'regs.ext.gpp_sid', gppConsent.applicableSections);
-      }
-    }
-    deepSetValue(request, 'ext.prebid', {});
+    cntRequest++;
+    const request = buildRequest(imps, bidderRequest, context)
+    const siteId = bidderRequest.bids[0].params.siteId!
+    siteIds.add(siteId);
+    deepSetValue(request, 'site.publisher.id', siteId)
+    deepSetValue(request, 'test', config.getConfig('debug') ? 1 : 0)
+    deepSetValue(request, 'ext.prebid.version', getGlobal()?.version ?? 'unknown');
+    deepSetValue(request, `ext.prebid.cntRequest`, cntRequest);
+    deepSetValue(request, `ext.prebid.cntImp`, cntImp);
+    deepSetValue(request, `ext.prebid.pVisible`, isPageVisible())
+    deepSetValue(request, `ext.prebid.uStart`, Math.trunc((performance.now() - uStart) / 1000))
     return request;
   },
 });
 
-// Basic validation of required parameters.
 const isBidRequestValid = (bid: BidRequest<typeof BIDDER_CODE>): boolean => {
   if (!bid.params.siteId || typeof bid.params.siteId !== 'string') {
     logError('bid.params.siteId needs to be a string');
-    return false;
+    if (config.getConfig('debug') === false) return false;
   }
   if (!bid.params.adUnitName || typeof bid.params.adUnitName !== 'string') {
     logError('bid.params.adUnitName needs to be a string');
-    return false;
+    if (config.getConfig('debug') === false) return false;
   }
   return true;
 };
 
-// Builds a single ORTB POST request containing all imps.
 const buildRequests = (
   bidRequests: BidRequest<typeof BIDDER_CODE>[],
   bidderRequest: ClientBidderRequest<typeof BIDDER_CODE>,
 ): AdapterRequest => {
-  const siteId = bidderRequest?.bids?.[0]?.params?.siteId;
-  setUserSyncContext({ siteId });
   const data: ORTBRequest = converter.toORTB({ bidRequests, bidderRequest });
-
+  const siteId = data.site!.publisher!.id;
   return {
     method: 'POST',
-    url: REQUEST_URL,
+    url: `${REQUEST_URL}?siteId=${siteId}`,
     data,
   };
 };
 
-// Converts the ORTB response to Prebid bids.
 const interpretResponse = (serverResponse, bidRequest) => {
   if (!serverResponse?.body) {
     return [];
@@ -115,9 +101,33 @@ const interpretResponse = (serverResponse, bidRequest) => {
   return converter.fromORTB({ request: bidRequest.data, response: serverResponse.body });
 };
 
-// Bidder declaration for Prebid.
+const getUserSyncs: GetUserSyncFn = (syncOptions, _serverResponses, gdprConsent, uspConsent, gppConsent) => {
+  const isIframeEnabled = syncOptions.iframeEnabled;
+  const isPixelEnabled = syncOptions.pixelEnabled;
+
+  if (!isIframeEnabled && !isPixelEnabled) {
+    return [];
+  }
+
+  const payload = btoa(JSON.stringify({
+    gdprConsentString: gdprConsent?.consentString,
+    gdprApplies: gdprConsent?.gdprApplies,
+    uspConsent,
+    gpp: gppConsent?.gppString,
+    gpp_sid: gppConsent?.applicableSections
+
+  }));
+  const syncUrl = isIframeEnabled ? COOKIESYNC_IFRAME_URL : COOKIESYNC_PIXEL_URL;
+
+  return Array.from(siteIds).map(siteId => ({
+    type: isIframeEnabled ? 'iframe' : 'image',
+    url: `${syncUrl}?consent=${payload}&siteId=${siteId}`,
+  }));
+};
+
 export const spec: BidderSpec<typeof BIDDER_CODE> = {
   code: BIDDER_CODE,
+  aliases: [{code: `${BIDDER_CODE}_server`, gvlid: GVLID}],
   gvlid: GVLID,
   supportedMediaTypes: [BANNER, VIDEO, NATIVE],
   isBidRequestValid,
